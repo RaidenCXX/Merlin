@@ -1,7 +1,6 @@
-#include "iostream"
+#include "Merlin.h"
 
-int
-main ()
-{
-  std::cout << "  merlin " << std::endl;
+int main() {
+  Merlin merlin;
+  merlin.run();
 }
