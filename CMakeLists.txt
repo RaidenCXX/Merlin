@@ -24,8 +24,10 @@ if(WIN32) # Windows
 #
 #
 elseif(UNIX AND NOT APPLE) # Linux
-  # set(LIB_DIR_PATH ${CMAKE_SOURCE_DIR}/deps/Linux64)
-  #target_link_libraries(Merlin PRIVATE ${LIB_DIR_PATH}/)
+  set(LIB_DIR_PATH ${CMAKE_SOURCE_DIR}/deps/lib/linux64)
+  target_link_libraries(Merlin PRIVATE 
+    ${LIB_DIR_PATH}/VulkanLoader/libvulkan.so 
+    ${LIB_DIR_PATH}/GLFW/libglfw.so                                          )
 elseif(APPLE) # macOS
 #
 #
