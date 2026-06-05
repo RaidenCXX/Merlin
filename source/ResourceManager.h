@@ -3,9 +3,14 @@
 #include "resource/Resource.h"
 #include "resource/ResourceHandle.h"
 
+#include <condition_variable>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <mutex>
+#include <queue>
 #include <string>
+#include <thread>
 #include <typeindex>
 #include <unordered_map>
 
@@ -121,6 +126,67 @@ public:
       }
     }
     m_refCounts.clear();
+  }
+};
+
+class AsyncResourceManager {
+  ResourceManager m_resourceManager;
+  std::thread m_workerThread;
+  std::queue<std::function<void()>> m_taskQueue;
+  std::mutex m_queueMutex;
+  std::condition_variable m_condition;
+  bool m_running = true;
+
+public:
+  AsyncResourceManager() { Start(); }
+  ~AsyncResourceManager() { Stop(); }
+
+  void Start() {
+    m_running = true;
+    m_workerThread = std::thread([this]() { workerThread(); });
+  }
+  void Stop() {
+    {
+      std::lock_guard<std::mutex> lock(m_queueMutex);
+      m_running = false;
+    }
+    m_condition.notify_one();
+    if (m_workerThread.joinable()) {
+      m_workerThread.join();
+    }
+  }
+
+  template <typename T>
+  void LoadAsync(const std::string& resourceId, const std::string& path,
+                 std::function<void(ResourceHandle<T>)> callback) {
+    {
+      std::lock_guard<std::mutex> lock(m_queueMutex);
+      m_taskQueue.push([this, resourceId, path, callback]() {
+        auto handle = m_resourceManager.load<T>(resourceId, path);
+        callback(handle);
+      });
+    }
+    m_condition.notify_one();
+  }
+
+private:
+  void workerThread() {
+    while (m_running) {
+      std::function<void()> task;
+      {
+        std::unique_lock<std::mutex> lock(m_queueMutex);
+        m_condition.wait(lock, [this]() { return !m_taskQueue.empty() || !m_running; });
+
+        if (!m_running && m_taskQueue.empty()) {
+          return;
+        }
+
+        task = std::move(m_taskQueue.front());
+        m_taskQueue.pop();
+      }
+
+      task();
+    }
   }
 };
 

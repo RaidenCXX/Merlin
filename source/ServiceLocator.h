@@ -1,21 +1,29 @@
 #pragma once
 
 #include "EntityRegistry.h"
+#include "Platform.h"
 #include "Renderer.h"
 #include "ResourceManager.h"
 
 #include <memory>
 class ServiceLocator {
   static Renderer* m_renderer;
-  static ResourceManager* m_resourceManager;
+  static AsyncResourceManager* m_resourceManager;
   static EntityRegistry* m_entityRegistry;
+  static Platform* m_platform;
 
 public:
   static void provideRenderer(Renderer* renderer);
-  static void provideResourceManager(ResourceManager* resourceManager);
+  static void provideResourceManager(AsyncResourceManager* resourceManager);
   static void provideEntityRegistry(EntityRegistry* entityRegistry);
+  static void providePlatform(Platform* platform);
 
   static Renderer& getRenderer();
-  static ResourceManager& getResourceManager();
+  static AsyncResourceManager& getResourceManager();
   static EntityRegistry& getEntityRegistry();
+
+  template <typename T>
+  static T& getPlatform() {
+    return *m_platform;
+  }
 };
