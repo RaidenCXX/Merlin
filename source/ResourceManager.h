@@ -11,8 +11,11 @@
 #include <queue>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <typeindex>
 #include <unordered_map>
+
+enum class GraphicsAPI { None = 0, Vulkan = 1, DirectX = 2 };
 
 class ResourceManager {
   struct ResourceData {
@@ -20,6 +23,7 @@ class ResourceManager {
     uint16_t refCount = 0;
   };
 
+  GraphicsAPI m_api = GraphicsAPI::None;
   std::unordered_map<std::type_index, std::unordered_map<std::string, std::shared_ptr<Resource>>>
     m_resources;
   std::unordered_map<std::type_index, std::unordered_map<std::string, ResourceData>> m_refCounts;
@@ -47,8 +51,14 @@ public:
     }
 
     // Create resource
-    std::shared_ptr<Resource> resource =
-      std::make_shared<T>(resourceId, std::forward<Args>(args)...);
+    std::shared_ptr<Resource> resource;
+    if constexpr (std::is_same_v<T, Texture>) {
+      if (m_api == GraphicsAPI::Vulkan) {
+        resource = std::make_shared<VkTexture>(resourceId, std::forward<Args>(args)...);
+      }
+    } else if constexpr (std::is_same_v<T, Mesh>) {
+      if (m_api == GraphicsAPI::Vulkan) {}
+    }
 
     // if the resource loading is failed
     if (!resource->load()) {
@@ -127,6 +137,9 @@ public:
     }
     m_refCounts.clear();
   }
+
+  void setAPI(GraphicsAPI api) { m_api = api; }
+  GraphicsAPI getAPI() { return m_api; }
 };
 
 class AsyncResourceManager {
@@ -156,13 +169,16 @@ public:
     }
   }
 
+  void setAPI(GraphicsAPI api) { m_resourceManager.setAPI(api); }
+  GraphicsAPI getAPI() { return m_resourceManager.getAPI(); }
+
   template <typename T>
-  void LoadAsync(const std::string& resourceId, const std::string& path,
-                 std::function<void(ResourceHandle<T>)> callback) {
+  void LoadResource(const std::string& resourceId, const std::string& path,
+                    std::function<void(ResourceHandle<T>)> callback) {
     {
       std::lock_guard<std::mutex> lock(m_queueMutex);
       m_taskQueue.push([this, resourceId, path, callback]() {
-        auto handle = m_resourceManager.load<T>(resourceId, path);
+        ResourceHandle<T> handle = this->m_resourceManager.load<T>(resourceId, path);
         callback(handle);
       });
     }

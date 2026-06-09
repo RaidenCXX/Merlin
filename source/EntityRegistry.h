@@ -12,7 +12,7 @@
 #include <vector>
 
 using EntityComponentVectorTuple =
-  std::tuple<std::vector<CTag>, std::vector<CTransform>, std::vector<CName>>;
+  std::tuple<std::vector<CTag>, std::vector<CTransform>, std::vector<CName>, std::vector<CTexture>>;
 
 using CameraComponentVectorTuple = std::tuple<std::vector<CCamera>, std::vector<CTransform>>;
 

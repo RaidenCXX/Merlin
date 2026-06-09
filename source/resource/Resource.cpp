@@ -2,6 +2,8 @@
 
 #include "vulkan/vulkan.hpp"
 
+#include <cstdint>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
@@ -57,9 +59,16 @@ bool VkTexture::createVulkanImage(unsigned char* data, uint32_t width, uint32_t 
 bool VkTexture::doLoad() {
   std::string filePath = "texture/" + getName() + "." + getExt();
 
-  unsigned char* imgData = LoadImageData(filePath, m_width, m_height, m_channels);
+  uint32_t width, height;
+  uint8_t channels;
 
-  createVulkanImage(imgData, m_width, m_height, m_channels);
+  unsigned char* imgData = LoadImageData(filePath, width, height, channels);
+
+  setWidth(width);
+  setHeight(height);
+  setChannels(channels);
+
+  createVulkanImage(imgData, getWidth(), getHeight(), getChannels());
 
   FreeImageData(imgData);
 
@@ -70,6 +79,8 @@ bool VkTexture::doUnload() {
   // vk::Device device = getDevice();
   return true;
 }
+
+Mesh::Mesh(const std::string& id, const std::string& path) : Resource(id, path) {}
 
 Shader::Shader(const std::string& id, const std::string& path, vk::ShaderStageFlagBits shaderStage)
     : Resource(id, path), m_stage(shaderStage) {}

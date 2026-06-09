@@ -38,11 +38,24 @@ protected:
 };
 
 class Texture : public Resource {
+  // Texture metadata for validation and debugging
+  uint32_t m_width = 0;
+  uint32_t m_height = 0;
+  uint8_t m_channels = 0;
+
 public:
   Texture(const std::string& id, const std::string& path) : Resource(id, path) {}
   unsigned char* LoadImageData(const std::string& filePath, uint32_t& width, uint32_t& height,
                                uint8_t& channels);
   void FreeImageData(unsigned char* data);
+
+  void setWidth(uint32_t width) { m_width = width; }
+  void setHeight(uint32_t height) { m_width = height; }
+  void setChannels(uint8_t channels) { m_width = channels; }
+
+  uint32_t getWidth() const { return m_width; }
+  uint32_t getHeight() const { return m_height; }
+  uint8_t getChannels() const { return m_channels; }
 };
 
 class VkTexture : public Texture {
@@ -51,11 +64,6 @@ class VkTexture : public Texture {
   vk::DeviceSize m_offset;    // Offset within the memory allocation for this texture
   vk::ImageView m_imageView;  // Shader-accessible view into the image
   vk::Sampler m_sampler;      // Sampling configuration (filtering, wrapping, etc.)
-
-  // Texture metadata for validation and debugging
-  uint32_t m_width = 0;
-  uint32_t m_height = 0;
-  uint8_t m_channels = 0;
 
 public:
   explicit VkTexture(const std::string& id, const std::string& path) : Texture(id, path) {}
@@ -67,7 +75,12 @@ protected:
   bool doUnload() override;
 };
 
-class VkMesh : public Resource {
+class Mesh : public Resource {
+public:
+  Mesh(const std::string& id, const std::string& path);
+};
+
+class VkMesh : public Mesh {
   // Vertex data management - stores per-vertex attributes like position, normal, UV coordinates
   vk::Buffer vertexBuffer;              // GPU buffer containing vertex attribute data
   vk::DeviceMemory vertexBufferMemory;  // GPU memory backing the vertex buffer
@@ -81,7 +94,7 @@ class VkMesh : public Resource {
   uint32_t indexCount = 0;             // Number of indices in this mesh (typically 3 per triangle)
 
 public:
-  explicit VkMesh(const std::string& id, const std::string& path) : Resource(id, path) {}
+  explicit VkMesh(const std::string& id, const std::string& path) : Mesh(id, path) {}
 
   ~VkMesh() override { unload(); }
 };

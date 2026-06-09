@@ -3,6 +3,8 @@
 #include "Entity.h"
 #include "glm/ext/matrix_float4x4.hpp"
 #include "glm/gtc/quaternion.hpp"
+#include "resource/Resource.h"
+#include "resource/ResourceHandle.h"
 
 #include <cstdint>
 #include <glm/ext/vector_float3.hpp>
@@ -15,7 +17,8 @@ enum class ComponentBit : uint64_t {
   CCamera = 1 << 2,
   CTag = 1 << 3,
   CName = 1 << 4,
-  CMask = 1 << 5
+  CMask = 1 << 5,
+  CTexture = 1 << 6
 };
 
 enum class EntityTag : uint32_t { None = 0, Props, Env, Player, Character };
@@ -69,6 +72,12 @@ public:
   EntityTag m_tag = EntityTag::None;
 
   bool operator==(EntityTag tag) { return m_tag == tag; }
+};
+
+class CTexture {
+public:
+  static constexpr uint64_t bit = static_cast<uint64_t>(ComponentBit::CTexture);
+  ResourceHandle<Texture> m_texture;
 };
 
 // 4
