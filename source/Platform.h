@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
 
@@ -30,6 +31,7 @@ public:
 
 class GLFWPlatform : public Platform {
   GLFWwindow* m_window = nullptr;
+  VkSurfaceKHR m_surface;
 
 public:
   virtual ~GLFWPlatform() = default;
