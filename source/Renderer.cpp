@@ -8,7 +8,6 @@
 #include <GLFW/glfw3.h>
 #include <strings.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <exception>
@@ -261,5 +260,24 @@ std::optional<uint32_t> VkRenderer::getFamilyQueue(VkPhysicalDevice physicalDevi
     return i;
   }
 
+  return std::nullopt;
+}
+
+std::optional<uint32_t> findMemoryType(VkPhysicalDevice physicalDevice, uint32_t memoryTypes,
+                                       VkMemoryPropertyFlags properties) {
+  VkPhysicalDeviceMemoryProperties memProps;
+  vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
+
+  for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i) {
+    // If memory type not available
+    if (!((memoryTypes & (1u << i)) != 0))
+      continue;
+
+    // If properties of memory type not fit
+    if (!((memProps.memoryTypes[i].propertyFlags & properties) == properties))
+      continue;
+
+    return i;
+  }
   return std::nullopt;
 }

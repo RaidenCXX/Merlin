@@ -55,4 +55,7 @@ private:
   static std::optional<uint32_t> getFamilyQueue(VkPhysicalDevice physicalDevice,
                                                 VkQueueFlags supportedQueue,
                                                 VkQueueFlags forbiddenFlags = 0);
+  static std::optional<uint32_t> findMemoryType(VkPhysicalDevice physicalDevice,
+                                                uint32_t memoryTypes,
+                                                VkMemoryPropertyFlags properties);
 };
