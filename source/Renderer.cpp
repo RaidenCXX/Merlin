@@ -8,39 +8,49 @@
 #include <GLFW/glfw3.h>
 #include <strings.h>
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <exception>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
-constexpr DeviceCapabilities operator|(DeviceCapabilities a, DeviceCapabilities b) {
-  return static_cast<DeviceCapabilities>(static_cast<uint64_t>(a) | static_cast<uint64_t>(b));
+constexpr VkDeviceCapabilities operator|(VkDeviceCapabilities a, VkDeviceCapabilities b) {
+  return static_cast<VkDeviceCapabilities>(static_cast<uint64_t>(a) | static_cast<uint64_t>(b));
 }
 
-constexpr DeviceCapabilities& operator|=(DeviceCapabilities& a, DeviceCapabilities b) {
+constexpr VkDeviceCapabilities& operator|=(VkDeviceCapabilities& a, VkDeviceCapabilities b) {
   a = a | b;
   return a;
 }
 
-constexpr bool hasFlag(DeviceCapabilities caps, DeviceCapabilities flag) {
+constexpr bool hasFlag(VkDeviceCapabilities caps, VkDeviceCapabilities flag) {
   return (static_cast<uint64_t>(caps) & static_cast<uint64_t>(flag)) == static_cast<uint64_t>(flag);
 }
 
 void VkRenderer::init() {
   try {
+    initValidationLayers();
     initExtensions();
     createInstance();
     createSurface();
     pickPhysicalDevice();
+    createDevice();
   } catch (std::exception& e) {
     std::cout << e.what() << std::endl;
   }
 }
 
 void VkRenderer::createInstance() {
+  // Check instance extensions
+  checkInstanceExtensions(m_instanceExtensions);
+
+  // Check validation layers
+  checkValidationLayerSupport(m_validationLayers);
+
   // App info
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -66,10 +76,10 @@ void VkRenderer::createInstance() {
   createInfo.pNext = &debugCreateInfo;
   createInfo.flags = 0;
   createInfo.pApplicationInfo = &appInfo;
-  createInfo.enabledLayerCount = 0;
-  createInfo.ppEnabledLayerNames = nullptr;
-  createInfo.enabledExtensionCount = 0;
-  createInfo.ppEnabledExtensionNames = nullptr;
+  createInfo.enabledLayerCount = static_cast<uint32_t>(m_validationLayers.size());
+  createInfo.ppEnabledLayerNames = m_validationLayers.data();
+  createInfo.enabledExtensionCount = m_instanceExtensions.size();
+  createInfo.ppEnabledExtensionNames = m_instanceExtensions.data();
 
   // Creation vulkan instance
   if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS) {
@@ -77,24 +87,37 @@ void VkRenderer::createInstance() {
   }
 }
 
+void VkRenderer::initValidationLayers() {
+  m_validationLayers = {"VK_LAYER_KHRONOS_validation"};
+}
+
 void VkRenderer::initExtensions() {
-  m_requiredExtensions.push_back("VK_KHR_SWAPCHAIN_EXTENSION_NAME");
+  GLFWPlatform* platform = static_cast<GLFWPlatform*>(ServiceLocator::getPlatform());
+  if (!platform)
+    throw std::runtime_error{"[ERROR](VkRenderer::initExtension){Platform pointer is null}"};
+
+  // instance
+  m_instanceExtensions = platform->getInstanceExtension();
+  m_instanceExtensions.push_back("VK_EXT_DEBUG_UTILS_EXTENSION_NAME");
+
+  // Device
+  m_deviceExtension.push_back("VK_KHR_SWAPCHAIN_EXTENSION_NAME");
 }
 
 void VkRenderer::createSurface() {
-  GLFWwindow* window =
-    static_cast<GLFWwindow*>(ServiceLocator::getPlatform<GLFWPlatform>().getNativeWindow());
+  GLFWwindow* window = static_cast<GLFWwindow*>(ServiceLocator::getPlatform()->getNativeWindow());
 
   VkResult result = glfwCreateWindowSurface(m_instance, window, nullptr, &m_surface);
   if (result != VK_SUCCESS)
-    throw std::runtime_error{"Failed to create vulkan instance!"};
+    throw std::runtime_error{"[ERROR](VkRenderer){Failed to create window surface!}"};
 }
 
 void VkRenderer::pickPhysicalDevice() {
   uint32_t physicalDeviceCount = 0;
   vkEnumeratePhysicalDevices(m_instance, &physicalDeviceCount, nullptr);
   if (physicalDeviceCount == 0) {
-    throw std::runtime_error("No Vulkan-capable GPU found");
+    throw std::runtime_error(
+      "[ERROR](VkRenderer::pickPhysicalDevice){No Vulkan-capable GPU found}");
   }
 
   std::vector<VkPhysicalDevice> physicalDevices(physicalDeviceCount);
@@ -102,11 +125,10 @@ void VkRenderer::pickPhysicalDevice() {
 
   VkPhysicalDevice bestDevice = VK_NULL_HANDLE;
   uint32_t bestScore = 0;
-  DeviceCapabilities bestCaps = DeviceCapabilities::None;
-  uint32_t deviceQueue = 0;
+  VkDeviceCapabilities bestCaps = VkDeviceCapabilities::None;
 
   for (uint32_t i = 0; i < physicalDeviceCount; ++i) {
-    DeviceCapabilities pdp = DeviceCapabilities::None;
+    VkDeviceCapabilities pdp = VkDeviceCapabilities::None;
     VkPhysicalDevice physicalDevice = physicalDevices[i];
 
     VkPhysicalDeviceProperties deviceProperties;
@@ -118,12 +140,12 @@ void VkRenderer::pickPhysicalDevice() {
     uint32_t major = VK_API_VERSION_MAJOR(deviceProperties.apiVersion);
     uint32_t minor = VK_API_VERSION_MINOR(deviceProperties.apiVersion);
     if (major > 1 || (major == 1 && minor >= 3)) {
-      pdp |= DeviceCapabilities::ApiVersion13;
+      pdp |= VkDeviceCapabilities::ApiVersion13;
     }
 
     // Discrete GPU
     if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-      pdp |= DeviceCapabilities::DiscreteGPU;
+      pdp |= VkDeviceCapabilities::DiscreteGPU;
     }
 
     // Extensions
@@ -134,7 +156,7 @@ void VkRenderer::pickPhysicalDevice() {
                                          available.data());
 
     bool allExtensionsFound = true;
-    for (const std::string& requiredExt : m_requiredExtensions) {
+    for (const std::string& requiredExt : m_deviceExtension) {
       bool found = false;
       for (const auto& ext : available) {
         if (requiredExt == ext.extensionName) {
@@ -149,35 +171,39 @@ void VkRenderer::pickPhysicalDevice() {
     }
     if (!allExtensionsFound)
       continue;
-    pdp |= DeviceCapabilities::SupportExtension;
+    pdp |= VkDeviceCapabilities::SupportExtension;
 
     // Queue
-    std::optional<uint32_t> family =
-      getFamilyQueue(physicalDevice,
-                     VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT | VK_QUEUE_COMPUTE_BIT);
-    if (!family)
+    std::optional<uint32_t> familyGraphics =
+      getFamilyQueue(physicalDevice, VK_QUEUE_GRAPHICS_BIT,
+                     VK_QUEUE_TRANSFER_BIT | VK_QUEUE_COMPUTE_BIT);
+
+    std::optional<uint32_t> familyTransfer =
+      getFamilyQueue(m_physicalDevice, VK_QUEUE_TRANSFER_BIT);
+
+    if (!(familyGraphics && familyTransfer))
       continue;
-    pdp |= DeviceCapabilities::SupportQueue;
+    pdp |= VkDeviceCapabilities::SupportQueue;
 
     // Present
     VkBool32 supported = VK_FALSE;
-    vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, *family, m_surface, &supported);
+    vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, *familyGraphics, m_surface, &supported);
     if (!supported)
       continue;
-    pdp |= DeviceCapabilities::SupportPresent;
+    pdp |= VkDeviceCapabilities::SupportPresent;
 
     // Geometry shader (optional)
     if (deviceFeatures.geometryShader) {
-      pdp |= DeviceCapabilities::GeometryShader;
+      pdp |= VkDeviceCapabilities::GeometryShader;
     }
 
     // Score
     uint32_t score = 0;
-    if (hasFlag(pdp, DeviceCapabilities::DiscreteGPU))
+    if (hasFlag(pdp, VkDeviceCapabilities::DiscreteGPU))
       score += 1000;
-    if (hasFlag(pdp, DeviceCapabilities::ApiVersion13))
+    if (hasFlag(pdp, VkDeviceCapabilities::ApiVersion13))
       score += 100;
-    if (hasFlag(pdp, DeviceCapabilities::GeometryShader))
+    if (hasFlag(pdp, VkDeviceCapabilities::GeometryShader))
       score += 10;
     score += deviceProperties.limits.maxImageDimension2D;
 
@@ -188,7 +214,6 @@ void VkRenderer::pickPhysicalDevice() {
       bestScore = score;
       bestDevice = physicalDevice;
       bestCaps = pdp;
-      deviceQueue = family.value();
     }
   }
 
@@ -198,14 +223,60 @@ void VkRenderer::pickPhysicalDevice() {
 
   m_physicalDevice = bestDevice;
   m_deviceCaps = bestCaps;
-  m_queues.emplace("graphics", deviceQueue);
+
+  m_queues.emplace(VkQueueFamilysIndex::Graphics,
+                   getFamilyQueue(m_physicalDevice, VK_QUEUE_GRAPHICS_BIT,
+                                  VK_QUEUE_TRANSFER_BIT | VK_QUEUE_COMPUTE_BIT)
+                     .value());
+
+  m_queues.emplace(VkQueueFamilysIndex::Transfer,
+                   getFamilyQueue(m_physicalDevice, VK_QUEUE_TRANSFER_BIT));
 
   VkPhysicalDeviceProperties chosenProps;
   vkGetPhysicalDeviceProperties(bestDevice, &chosenProps);
   std::cout << "Selected GPU: " << chosenProps.deviceName << '\n';
 }
 
-void VkRenderer::createDevice() {}
+void VkRenderer::createDevice() {
+  // pQueueCreateInfos
+  std::array<VkDeviceQueueCreateInfo, 2> queueInfos{};
+
+  VkDeviceQueueCreateInfo graphicsQueueInfo{};
+  queueInfos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+  queueInfos[0].pNext = nullptr;
+  queueInfos[0].flags = 0;
+  queueInfos[0].queueFamilyIndex = m_queues[VkQueueFamilysIndex::Graphics];
+  queueInfos[0].queueCount = 1;
+  queueInfos[0].pQueuePriorities = nullptr;
+
+  VkDeviceQueueCreateInfo transferQueueInfo{};
+  queueInfos[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+  queueInfos[1].pNext = nullptr;
+  queueInfos[1].flags = 0;
+  queueInfos[1].queueFamilyIndex = m_queues[VkQueueFamilysIndex::Transfer];
+  queueInfos[1].queueCount = 1;
+  queueInfos[1].pQueuePriorities = nullptr;
+
+  VkPhysicalDeviceFeatures enabledFeatures{};
+  enabledFeatures.samplerAnisotropy = VK_TRUE;
+  enabledFeatures.fillModeNonSolid = VK_TRUE;
+  enabledFeatures.textureCompressionBC = VK_TRUE;
+  enabledFeatures.depthClamp = VK_TRUE;
+
+  VkDeviceCreateInfo deviceInfo{};
+  deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+  deviceInfo.pNext = nullptr;
+  deviceInfo.flags = 0;
+  deviceInfo.queueCreateInfoCount = queueInfos.size();
+  deviceInfo.pQueueCreateInfos = queueInfos.data();
+  deviceInfo.enabledLayerCount = 0;
+  deviceInfo.ppEnabledLayerNames = nullptr;
+  deviceInfo.enabledExtensionCount = m_deviceExtension.size();
+  deviceInfo.ppEnabledExtensionNames = m_deviceExtension.data();
+  deviceInfo.pEnabledFeatures = &enabledFeatures;
+
+  vkCreateDevice(m_physicalDevice, &deviceInfo, nullptr, &m_logicalDevice);
+}
 
 VKAPI_ATTR VkBool32 VKAPI_CALL
 VkRenderer::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -280,4 +351,53 @@ std::optional<uint32_t> findMemoryType(VkPhysicalDevice physicalDevice, uint32_t
     return i;
   }
   return std::nullopt;
+}
+
+void VkRenderer::checkValidationLayerSupport(const std::vector<const char*>& required) {
+  uint32_t layerCount = 0;
+  vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+  std::vector<VkLayerProperties> available(layerCount);
+  vkEnumerateInstanceLayerProperties(&layerCount, available.data());
+
+  for (const char* req : required) {
+    bool found = false;
+    for (const auto& layer : available) {
+      if (strcmp(req, layer.layerName) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      std::string msg{
+        "[ERROR](VkRenderer::checkValidationLayerSupport){Validation layer missing: "};
+      msg += req;
+      msg.push_back('}');
+      std::runtime_error{msg};
+    }
+  }
+}
+
+void VkRenderer::checkInstanceExtensions(const std::vector<const char*>& requiredExt) {
+  uint32_t extensionCount = 0;
+  vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+
+  std::vector<VkExtensionProperties> available(extensionCount);
+  vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, available.data());
+
+  for (const char* req : requiredExt) {
+    bool found = false;
+    for (const auto& ext : available) {
+      if (strcmp(req, ext.extensionName) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      std::string msg = "[ERROR](VkRenderer::checkInstanceExtensions){Missing instance extension: ";
+      msg += req;
+      msg += "}";
+      throw std::runtime_error(msg);
+    }
+  }
 }

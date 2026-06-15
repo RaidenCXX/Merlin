@@ -33,3 +33,14 @@ bool GLFWPlatform::pollEvents() {
 void* GLFWPlatform::getNativeWindow() {
   return nullptr;
 }
+
+std::vector<const char*> GLFWPlatform::getInstanceExtension() {
+  uint32_t glfwExtCount = 0;
+  const char** glfwExts = glfwGetRequiredInstanceExtensions(&glfwExtCount);
+
+  std::vector<const char*> ext;
+  for (uint32_t i = 0; i < glfwExtCount; ++i) {
+    ext.push_back(glfwExts[i]);
+  }
+  return ext;
+}

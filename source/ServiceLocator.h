@@ -22,8 +22,5 @@ public:
   static AsyncResourceManager& getResourceManager();
   static EntityRegistry& getEntityRegistry();
 
-  template <typename T>
-  static T& getPlatform() {
-    return *m_platform;
-  }
+  static Platform* getPlatform();
 };

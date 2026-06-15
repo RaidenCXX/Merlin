@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vulkan/vulkan_core.h>
+
+#include <vector>
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
 
@@ -19,6 +21,7 @@ public:
   virtual bool pollEvents() = 0;
   virtual void* getNativeWindow() = 0;
   virtual bool windowShouldClose() = 0;
+  virtual std::vector<const char*> getInstanceExtension() = 0;
 
   uint32_t getWidth() { return m_width; }
   uint32_t getHeight() { return m_height; }
@@ -40,4 +43,5 @@ public:
   virtual bool pollEvents() override;
   virtual void* getNativeWindow() override;
   virtual bool windowShouldClose() override { return glfwWindowShouldClose(m_window); }
+  virtual std::vector<const char*> getInstanceExtension() override;
 };

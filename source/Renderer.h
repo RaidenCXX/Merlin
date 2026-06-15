@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <vector>
 
-enum class DeviceCapabilities : uint64_t {
+enum class VkDeviceCapabilities : uint64_t {
   None = 0,
   DiscreteGPU = 1 << 0,
   SupportExtension = 1 << 1,
@@ -19,6 +19,8 @@ enum class DeviceCapabilities : uint64_t {
   GeometryShader = 1 << 4,
   SupportPresent = 1 << 5
 };
+
+enum class VkQueueFamilysIndex { Graphics = 0, Transfer = 1, Compute = 2, Sparse = 3 };
 
 class Renderer {
 public:
@@ -30,10 +32,14 @@ class VkRenderer : public Renderer {
   VkInstance m_instance;
   VkSurfaceKHR m_surface;
   VkPhysicalDevice m_physicalDevice;
-  DeviceCapabilities m_deviceCaps;
-  std::unordered_map<std::string, uint32_t> m_queues;
+  VkDeviceCapabilities m_deviceCaps;
+  std::unordered_map<VkQueueFamilysIndex, uint32_t> m_queues;
 
-  std::vector<std::string> m_requiredExtensions;
+  VkDevice m_logicalDevice;
+
+  std::vector<const char*> m_instanceExtensions;
+  std::vector<const char*> m_deviceExtension;
+  std::vector<const char*> m_validationLayers;
 
 public:
   virtual void init() override;
@@ -43,6 +49,7 @@ public:
 private:
   void createInstance();
   void createSurface();
+  void initValidationLayers();
   void initExtensions();
   void pickPhysicalDevice();
   void createDevice();
@@ -55,7 +62,11 @@ private:
   static std::optional<uint32_t> getFamilyQueue(VkPhysicalDevice physicalDevice,
                                                 VkQueueFlags supportedQueue,
                                                 VkQueueFlags forbiddenFlags = 0);
+
   static std::optional<uint32_t> findMemoryType(VkPhysicalDevice physicalDevice,
                                                 uint32_t memoryTypes,
                                                 VkMemoryPropertyFlags properties);
+  static void checkValidationLayerSupport(const std::vector<const char*>& required);
+
+  static void checkInstanceExtensions(const std::vector<const char*>& requiredExt);
 };

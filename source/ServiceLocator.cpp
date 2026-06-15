@@ -41,3 +41,7 @@ AsyncResourceManager& ServiceLocator::getResourceManager() {
 EntityRegistry& ServiceLocator::getEntityRegistry() {
   return *m_entityRegistry;
 }
+
+Platform* ServiceLocator::getPlatform() {
+  return m_platform;
+}
