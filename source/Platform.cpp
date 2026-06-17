@@ -44,3 +44,7 @@ std::vector<const char*> GLFWPlatform::getInstanceExtension() {
   }
   return ext;
 }
+
+void GLFWPlatform::getFramebufferSize(int& width, int& height) {
+  glfwGetFramebufferSize(m_window, &width, &height);
+}

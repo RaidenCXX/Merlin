@@ -17,10 +17,11 @@ enum class VkDeviceCapabilities : uint64_t {
   SupportQueue = 1 << 2,
   ApiVersion13 = 1 << 3,
   GeometryShader = 1 << 4,
-  SupportPresent = 1 << 5
+  SupportPresent = 1 << 5,
+  SupportSwapchain = 1 << 6
 };
 
-enum class VkQueueFamilysIndex { Graphics = 0, Transfer = 1, Compute = 2, Sparse = 3 };
+enum class VkQueueFamilysIndex { Graphics = 0, Transfer = 1, Compute = 2, Sparse = 3, Present = 4 };
 
 class Renderer {
 public:
@@ -33,9 +34,16 @@ class VkRenderer : public Renderer {
   VkSurfaceKHR m_surface;
   VkPhysicalDevice m_physicalDevice;
   VkDeviceCapabilities m_deviceCaps;
-  std::unordered_map<VkQueueFamilysIndex, uint32_t> m_queues;
-
   VkDevice m_logicalDevice;
+
+  std::unordered_map<VkQueueFamilysIndex, uint32_t> m_queues;
+  VkQueue m_graphicsQueue;
+  VkQueue m_transferQueue;
+
+  VkSwapchainKHR m_swapchain = nullptr;
+  std::vector<VkImage> m_swapchainImage;
+  VkSurfaceFormatKHR m_swapchainSurfaceFormat;
+  VkExtent2D m_swapchainExtent;
 
   std::vector<const char*> m_instanceExtensions;
   std::vector<const char*> m_deviceExtension;
@@ -47,12 +55,13 @@ public:
   VkPhysicalDevice getPhysicalDevice() { return m_physicalDevice; }
 
 private:
-  void createInstance();
-  void createSurface();
   void initValidationLayers();
   void initExtensions();
+  void createInstance();
+  void createSurface();
   void pickPhysicalDevice();
   void createDevice();
+  void createSwapchain();
 
   static VKAPI_ATTR VkBool32 VKAPI_CALL
   debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -69,4 +78,6 @@ private:
   static void checkValidationLayerSupport(const std::vector<const char*>& required);
 
   static void checkInstanceExtensions(const std::vector<const char*>& requiredExt);
+  static std::optional<uint32_t> findPresentQueueSupport(VkPhysicalDevice physicalDevice,
+                                                         VkSurfaceKHR surface);
 };

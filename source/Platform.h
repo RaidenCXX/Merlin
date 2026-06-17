@@ -22,6 +22,7 @@ public:
   virtual void* getNativeWindow() = 0;
   virtual bool windowShouldClose() = 0;
   virtual std::vector<const char*> getInstanceExtension() = 0;
+  virtual void getFramebufferSize(int& width, int& height) = 0;
 
   uint32_t getWidth() { return m_width; }
   uint32_t getHeight() { return m_height; }
@@ -44,4 +45,5 @@ public:
   virtual void* getNativeWindow() override;
   virtual bool windowShouldClose() override { return glfwWindowShouldClose(m_window); }
   virtual std::vector<const char*> getInstanceExtension() override;
+  virtual void getFramebufferSize(int& width, int& height) override;
 };
