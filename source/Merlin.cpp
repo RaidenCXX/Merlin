@@ -1,51 +1,53 @@
 #include "Merlin.h"
 
-#include "Component.h"
-#include "EntityRegistry.h"
-#include "Platform.h"
-#include "Renderer.h"
-#include "ResourceManager.h"
+#include "Messenger.h"
+#include "Platform/Platform.h"
+#include "Renderer/Renderer.h"
+#include "ResourceManager/ResourceManager.h"
 #include "ServiceLocator.h"
-#include "resource/Resource.h"
-#include "resource/ResourceHandle.h"
 
-#include <glm/ext/vector_float3.hpp>
-#include <iostream>
+#include <vulkan/vulkan_core.h>
+
 #include <memory>
+
+void setDefaultSettings(Settings& settings);
 
 Merlin::Merlin() {
   init();
 }
 
 void Merlin::init() {
-  m_platform = std::make_unique<GLFWPlatform>();
-  m_renderer = std::make_unique<VkRenderer>();
-  m_resourceManager = std::make_unique<AsyncResourceManager>();
-  m_sceneManager = std::make_unique<SceneManager>();
-  m_entityRegistry = std::make_unique<EntityRegistry>();
+  setDefaultSettings(m_settings);
 
-  ServiceLocator::provideRenderer(m_renderer.get());
-  ServiceLocator::provideResourceManager(m_resourceManager.get());
-  ServiceLocator::provideEntityRegistry(m_entityRegistry.get());
+  m_platform = std::make_unique<mr::GLFWPlatform>();
+  m_renderer = std::make_unique<mr::VkRenderer>();
+  m_resourceManager = std::make_unique<mr::AsyncResourceManager>();
+  m_sceneManager = std::make_unique<mr::SceneManager>();
+  m_messenger = std::make_unique<mr::Messenger>();
 
-  m_resourceManager->setAPI(GraphicsAPI::Vulkan);
+  mr::ServiceLocator::provideRenderer(m_renderer.get());
+  mr::ServiceLocator::provideResourceManager(m_resourceManager.get());
+  mr::ServiceLocator::providePlatform(m_platform.get());
+  mr::ServiceLocator::provideSettings(&m_settings);
+  mr::ServiceLocator::provideMessenger(m_messenger.get());
 
-  uint32_t id = m_entityRegistry->createEntity("player");
-  Entity* e = m_entityRegistry->getEntity(id);
+  // Init
+  m_messenger->init();
+  m_platform->init("Merlin", 1000, 1000);
+  m_resourceManager->init();
+  m_sceneManager->init();
+  m_renderer->init();
 
-  m_resourceManager->LoadResource<Texture>("stone", "textures/stone.png",
-                                           [id, this](ResourceHandle<Texture> texHandle) {
-                                             Entity* e = this->m_entityRegistry->getEntity(id);
-                                             e->addComponent<CTexture>();
-                                             e->getComponent<CTexture>().m_texture = texHandle;
-                                             std::cout << "Done " << texHandle->getId()
-                                                       << std::endl;
-                                           });
-
-  if (!m_platform->init("Merlin", 1000, 1000))
-    std::cout << "Window creation failure!" << std::endl;
+  m_resourceManager->loadResource<mr::VkShader>("default", "shaders/slang/default.slang",
+                                                VK_SHADER_STAGE_VERTEX_BIT
+                                                  | VK_SHADER_STAGE_FRAGMENT_BIT);
 }
 
 void Merlin::run() {
   while (!m_platform->windowShouldClose()) {}
+}
+
+void setDefaultSettings(Settings& settings) {
+  settings.m_graphicsApi = mr::GraphicsAPI::Vulkan;
+  settings.m_platform = mr::PlatformType::GLFWPlatform;
 }

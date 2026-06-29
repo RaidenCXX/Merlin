@@ -1,26 +1,32 @@
 #pragma once
 
-#include "EntityRegistry.h"
-#include "Platform.h"
-#include "Renderer.h"
-#include "ResourceManager.h"
+#include "Default.h"
+#include "Messenger.h"
+#include "Platform/Platform.h"
+#include "Renderer/Renderer.h"
+#include "ResourceManager/ResourceManager.h"
 
-#include <memory>
+namespace mr {
+
 class ServiceLocator {
-  static Renderer* m_renderer;
-  static AsyncResourceManager* m_resourceManager;
-  static EntityRegistry* m_entityRegistry;
-  static Platform* m_platform;
+  static mr::Renderer* m_renderer;
+  static mr::AsyncResourceManager* m_resourceManager;
+  static mr::Platform* m_platform;
+  static mr::Messenger* m_messenger;
+  static Settings* m_settings;
 
 public:
-  static void provideRenderer(Renderer* renderer);
-  static void provideResourceManager(AsyncResourceManager* resourceManager);
-  static void provideEntityRegistry(EntityRegistry* entityRegistry);
-  static void providePlatform(Platform* platform);
+  static void provideRenderer(mr::Renderer* renderer);
+  static void provideResourceManager(mr::AsyncResourceManager* resourceManager);
+  static void providePlatform(mr::Platform* platform);
+  static void provideSettings(Settings* settings);
+  static void provideMessenger(Messenger* messenger);
 
-  static Renderer& getRenderer();
-  static AsyncResourceManager& getResourceManager();
-  static EntityRegistry& getEntityRegistry();
-
-  static Platform* getPlatform();
+  static mr::Renderer& getRenderer();
+  static mr::AsyncResourceManager& getResourceManager();
+  static mr::Platform* getPlatform();
+  static mr::Messenger* getMessenger();
+  static Settings* getSettings();
 };
+
+}  // namespace mr

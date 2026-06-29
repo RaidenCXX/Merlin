@@ -7,6 +7,7 @@ project(Merlin CXX)
 #C++ standart
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 #Executable
 file(GLOB_RECURSE SOURCES
@@ -27,7 +28,8 @@ elseif(UNIX AND NOT APPLE) # Linux
   set(LIB_DIR_PATH ${CMAKE_SOURCE_DIR}/deps/lib/linux64)
   target_link_libraries(Merlin PRIVATE 
     ${LIB_DIR_PATH}/VulkanLoader/libvulkan.so 
-    ${LIB_DIR_PATH}/GLFW/libglfw.so                                          )
+    ${LIB_DIR_PATH}/GLFW/libglfw.so
+    ${LIB_DIR_PATH}/Slang/libslang.so)
 elseif(APPLE) # macOS
 #
 #

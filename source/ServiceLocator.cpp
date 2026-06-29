@@ -1,47 +1,53 @@
 #include "ServiceLocator.h"
 
-#include "EntityRegistry.h"
-#include "Platform.h"
-#include "Renderer.h"
-#include "ResourceManager.h"
+#include "Messenger.h"
+#include "Platform/Platform.h"
+#include "Renderer/Renderer.h"
+#include "ResourceManager/ResourceManager.h"
 
-Renderer* ServiceLocator::m_renderer = nullptr;
-AsyncResourceManager* ServiceLocator::m_resourceManager = nullptr;
-EntityRegistry* ServiceLocator::m_entityRegistry = nullptr;
-Platform* ServiceLocator::m_platform = nullptr;
+mr::Renderer* mr::ServiceLocator::m_renderer = nullptr;
+mr::AsyncResourceManager* mr::ServiceLocator::m_resourceManager = nullptr;
+mr::Platform* mr::ServiceLocator::m_platform = nullptr;
+mr::Messenger* mr::ServiceLocator::m_messenger = nullptr;
+Settings* mr::ServiceLocator::m_settings = nullptr;
 
-void ServiceLocator::provideRenderer(Renderer* renderer) {
+void mr::ServiceLocator::provideRenderer(mr::Renderer* renderer) {
   if (renderer != nullptr)
     m_renderer = renderer;
 }
 
-void ServiceLocator::provideResourceManager(AsyncResourceManager* resourceManager) {
+void mr::ServiceLocator::provideResourceManager(mr::AsyncResourceManager* resourceManager) {
   if (resourceManager != nullptr)
     m_resourceManager = resourceManager;
 }
 
-void ServiceLocator::provideEntityRegistry(EntityRegistry* entityRegistry) {
-  if (entityRegistry != nullptr)
-    m_entityRegistry = entityRegistry;
-}
-
-void ServiceLocator::providePlatform(Platform* platform) {
+void mr::ServiceLocator::providePlatform(mr::Platform* platform) {
   if (platform != nullptr)
     m_platform = platform;
 }
 
-Renderer& ServiceLocator::getRenderer() {
+void mr::ServiceLocator::provideMessenger(Messenger* messenger) {
+  if (messenger != nullptr)
+    m_messenger = messenger;
+}
+
+void mr::ServiceLocator::provideSettings(Settings* settings) {
+  if (settings != nullptr)
+    m_settings = settings;
+}
+
+mr::Renderer& mr::ServiceLocator::getRenderer() {
   return *m_renderer;
 }
 
-AsyncResourceManager& ServiceLocator::getResourceManager() {
+mr::AsyncResourceManager& mr::ServiceLocator::getResourceManager() {
   return *m_resourceManager;
 }
 
-EntityRegistry& ServiceLocator::getEntityRegistry() {
-  return *m_entityRegistry;
+mr::Platform* mr::ServiceLocator::getPlatform() {
+  return m_platform;
 }
 
-Platform* ServiceLocator::getPlatform() {
-  return m_platform;
+Settings* mr::ServiceLocator::getSettings() {
+  return m_settings;
 }
