@@ -1,83 +1,144 @@
 #include "SlangCompiler.h"
 
 #include "../ServiceLocator.h"
+#include "slang/slang-com-ptr.h"
 #include "slang/slang.h"
 
-bool mr::SlangCompiler::init() {
-  return SLANG_SUCCEEDED(slang::createGlobalSession(m_globalSesion.writeRef()));
+#include <array>
+#include <cstdint>
+#include <string>
+
+void slangDiagnostic(const std::string& id, SlangResult result,
+                     Slang::ComPtr<slang::IBlob> diagnosticsBlob, const std::string& stage,
+                     mr::Messenger* messenger);
+
+void mr::SlangCompiler::init() {
+  mr::Messenger* messenger = mr::ServiceLocator::getMessenger();
+  if (!(slang::createGlobalSession(m_globalSesion.writeRef()) >= 0)) {
+    messenger->sendMessage("ERROR", "SlangCompiler::init", "The session was not created");
+    return;
+  }
 }
 
 void mr::SlangCompiler::shutdown() {
   m_globalSesion = nullptr;
 }
 
-bool mr::SlangCompiler::compile(const std::string& path, const std::string& entryPoint,
-                                std::vector<char>& outSpirv) {
+void mr::SlangCompiler::compileVk(const std::string& id, const std::string& path,
+                                  const std::string& entryPoint, std::vector<char>& outSpirv) {
   mr::Messenger* messenger = mr::ServiceLocator::getMessenger();
+  if (messenger == nullptr) {
+    return;
+  }
 
-  using namespace Slang;
-
-  // 1. Налаштування target
   slang::TargetDesc targetDesc{};
   targetDesc.format = SLANG_SPIRV;
-  targetDesc.profile = m_globalSesion->findProfile("spirv_1_5");
+  targetDesc.profile = m_globalSesion->findProfile("sm_6_5");
+  targetDesc.flags = SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
 
-  // 2. Створення session для цієї компіляції
+  // Options
+  std::array<slang::CompilerOptionEntry, 3> options;
+  // Compile with out hlsl step
+  options[0].name = slang::CompilerOptionName::EmitSpirvDirectly;
+  options[0].value =
+    slang::CompilerOptionValue{slang::CompilerOptionValueKind::Int, 1, 0, nullptr, nullptr};
+  // Optimization level 0-3
+  options[1].name = slang::CompilerOptionName::Optimization;
+  options[1].value =
+    slang::CompilerOptionValue{slang::CompilerOptionValueKind::Int, 3, 0, nullptr, nullptr};
+  // Debug info
+  options[2].name = slang::CompilerOptionName::DebugInformation;
+  options[2].value =
+    slang::CompilerOptionValue{slang::CompilerOptionValueKind::Int, 2, 0, nullptr, nullptr};
+
+  // Session creation
   slang::SessionDesc sessionDesc{};
   sessionDesc.targets = &targetDesc;
   sessionDesc.targetCount = 1;
+  sessionDesc.compilerOptionEntries = options.data();
+  sessionDesc.compilerOptionEntryCount = options.size();
+  sessionDesc.searchPaths = mr::ServiceLocator::getSettings()->systemPaths.shadersFolderPath.data();
+  sessionDesc.searchPathCount =
+    static_cast<uint32_t>(mr::ServiceLocator::getSettings()->systemPaths.shadersFolderPath.size());
 
-  ComPtr<slang::ISession> session;
-  if (SLANG_FAILED(m_globalSesion->createSession(sessionDesc, session.writeRef()))) {
-    messenger->sendMessage("ERROR", "SlangCompiler::compile", "Failed to create Slang session");
-    return false;
+  Slang::ComPtr<slang::ISession> session;
+  m_globalSesion->createSession(sessionDesc, session.writeRef());
+
+  // Slang Module
+  Slang::ComPtr<slang::IModule> shaderModule;
+  {
+    Slang::ComPtr<slang::IBlob> diagnosticsBlob;
+    shaderModule = session->loadModule(id.data(), diagnosticsBlob.writeRef());
+    slangDiagnostic(id, shaderModule ? SLANG_OK : SLANG_FAIL, diagnosticsBlob, "loadModule",
+                    messenger);
+    if (!shaderModule)
+      return;
   }
 
-  // 3. Завантаження модуля
-  ComPtr<slang::IBlob> diagnostics;
-  slang::IModule* module = session->loadModule(path.c_str(), diagnostics.writeRef());
-  if (!module) {
-    if (diagnostics)
-      std::cerr << (const char*)diagnostics->getBufferPointer() << "\n";
-    return false;
+  // Entry point
+  Slang::ComPtr<slang::IEntryPoint> ePoint;
+  {
+    Slang::ComPtr<slang::IBlob> diagnosticsBlob;
+    shaderModule->findEntryPointByName(entryPoint.data(), ePoint.writeRef());
+    if (!ePoint) {
+      messenger->sendMessage("ERROR", "SlangCompiler::compileVk",
+                             "Failed to find a entry point " + id);
+      return;
+    }
   }
 
-  // 4. Пошук entry point
-  ComPtr<slang::IEntryPoint> entryPointPtr;
-  if (SLANG_FAILED(module->findEntryPointByName(entryPoint.c_str(), entryPointPtr.writeRef()))) {
-    std::cerr << "Entry point not found: " << entryPoint << "\n";
-    return false;
+  // Composition
+  std::array<slang::IComponentType*, 2> componentTypes{};
+  componentTypes[0] = shaderModule;
+  componentTypes[1] = ePoint;
+
+  Slang::ComPtr<slang::IComponentType> composedProgram;
+  {
+    Slang::ComPtr<slang::IBlob> diagnosticsBlob;
+    SlangResult result =
+      session->createCompositeComponentType(componentTypes.data(), componentTypes.size(),
+                                            composedProgram.writeRef(), diagnosticsBlob.writeRef());
+    slangDiagnostic(id, result, diagnosticsBlob, "composition", messenger);
+    if (SLANG_FAILED(result))
+      return;
   }
 
-  // 5. Компонування програми
-  std::vector<slang::IComponentType*> components = {module, entryPointPtr};
-  ComPtr<slang::IComponentType> program;
-  if (SLANG_FAILED(m_globalSesion->createCompositeComponentType(components.data(),
-                                                                components.size(),
-                                                                program.writeRef()))) {
-    return false;
+  // Link
+  Slang::ComPtr<slang::IComponentType> linkedProgram;
+  {
+    Slang::ComPtr<slang::IBlob> diagnosticsBlob;
+    SlangResult result =
+      composedProgram->link(linkedProgram.writeRef(), diagnosticsBlob.writeRef());
+    slangDiagnostic(id, result, diagnosticsBlob, "link", messenger);
+    if (SLANG_FAILED(result))
+      return;
   }
 
-  // 6. Лінкування
-  ComPtr<slang::IComponentType> linkedProgram;
-  if (SLANG_FAILED(program->link(linkedProgram.writeRef(), diagnostics.writeRef()))) {
-    if (diagnostics)
-      std::cerr << (const char*)diagnostics->getBufferPointer() << "\n";
-    return false;
+  // SPIR-V
+  Slang::ComPtr<slang::IBlob> spirvCode;
+  {
+    Slang::ComPtr<slang::IBlob> diagnosticsBlob;
+    SlangResult result =
+      linkedProgram->getEntryPointCode(0, 0, spirvCode.writeRef(), diagnosticsBlob.writeRef());
+    slangDiagnostic(id, result, diagnosticsBlob, "getEntryPointCode", messenger);
+    if (SLANG_FAILED(result))
+      return;
   }
 
-  // 7. Отримання SPIR-V коду
-  ComPtr<slang::IBlob> spirvBlob;
-  if (SLANG_FAILED(
-        linkedProgram->getEntryPointCode(0, 0, spirvBlob.writeRef(), diagnostics.writeRef()))) {
-    if (diagnostics)
-      std::cerr << (const char*)diagnostics->getBufferPointer() << "\n";
-    return false;
-  }
+  outSpirv.resize(spirvCode->getBufferSize());
+  memcpy(outSpirv.data(), spirvCode->getBufferPointer(), spirvCode->getBufferSize());
+}
 
-  // 8. Копіювання в outSpirv
-  outSpirv.resize(spirvBlob->getBufferSize());
-  memcpy(outSpirv.data(), spirvBlob->getBufferPointer(), spirvBlob->getBufferSize());
+void slangDiagnostic(const std::string& id, SlangResult result,
+                     Slang::ComPtr<slang::IBlob> diagnosticsBlob, const std::string& stage,
+                     mr::Messenger* messenger) {
+  if (!diagnosticsBlob)
+    return;
 
-  return true;
+  const char* severity = SLANG_FAILED(result) ? "ERROR" : "WARNING";
+  const char* msg = static_cast<const char*>(diagnosticsBlob->getBufferPointer());
+
+  std::string fullMessage = stage + ": " + msg + " (" + id + ")";
+
+  messenger->sendMessage(severity, "SlangCompiler::compileVk", fullMessage);
 }

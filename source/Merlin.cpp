@@ -9,6 +9,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include <memory>
+#include <string>
 
 void setDefaultSettings(Settings& settings);
 
@@ -48,6 +49,8 @@ void Merlin::run() {
 }
 
 void setDefaultSettings(Settings& settings) {
-  settings.m_graphicsApi = mr::GraphicsAPI::Vulkan;
-  settings.m_platform = mr::PlatformType::GLFWPlatform;
+  settings.graphicsApi = mr::GraphicsAPI::Vulkan;
+  settings.platform = mr::PlatformType::GLFWPlatform;
+
+  settings.systemPaths.shadersFolderPath.push_back("shaders/slang");
 }

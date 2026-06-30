@@ -1,5 +1,6 @@
 #pragma once
 
+#include <slang/slang-com-helper.h>
 #include <slang/slang-com-ptr.h>
 #include <slang/slang.h>
 #include <vulkan/vulkan.h>
@@ -12,10 +13,12 @@ class SlangCompiler {
   Slang::ComPtr<slang::IGlobalSession> m_globalSesion;
 
 public:
-  bool init();
+  void init();
   void shutdown();
 
-  bool compile(const std::string& path, const std::string& entryPoint, std::vector<char>& outSpirv);
+  void compileVk(const std::string& id, const std::string& path, const std::string& entryPoint,
+                 std::vector<char>& outSpirv);
+  bool compileD3D();
 };
 
 }  // namespace mr

@@ -76,7 +76,8 @@ bool mr::VkShader::doLoad() {
     return false;
 
   std::vector<char> spirvCode;
-  if (!compailer->compile(getPath(), entryPoint, spirvCode))
+  compailer->compileVk(getName() + getExt(), getPath(), entryPoint, spirvCode);
+  if (spirvCode.empty())
     return false;
 
   return createShaderModule(spirvCode);

@@ -3,7 +3,14 @@
 #include "Platform/Platform.h"
 #include "Renderer/Renderer.h"
 
+#include <vector>
+
+struct SystemPaths {
+  std::vector<const char*> shadersFolderPath;
+};
+
 struct Settings {
-  mr::GraphicsAPI m_graphicsApi = mr::GraphicsAPI::None;
-  mr::PlatformType m_platform = mr::PlatformType::None;
+  mr::GraphicsAPI graphicsApi = mr::GraphicsAPI::None;
+  mr::PlatformType platform = mr::PlatformType::None;
+  SystemPaths systemPaths;
 };
