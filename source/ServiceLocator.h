@@ -1,32 +1,24 @@
 #pragma once
 
-#include "Default.h"
-#include "Messenger.h"
-#include "Platform/Platform.h"
+#include "Config.h"
 #include "Renderer/Renderer.h"
-#include "ResourceManager/ResourceManager.h"
+#include "WindowSystem/WindowSystem.h"
 
 namespace mr {
 
 class ServiceLocator {
-  static mr::Renderer* m_renderer;
-  static mr::AsyncResourceManager* m_resourceManager;
-  static mr::Platform* m_platform;
-  static mr::Messenger* m_messenger;
-  static Settings* m_settings;
+  static mr::IRenderer* m_renderer;
+  static mr::IWindowSystem* m_windowSystem;
+  static mr::EngineConfig* m_engineConfig;
 
 public:
-  static void provideRenderer(mr::Renderer* renderer);
-  static void provideResourceManager(mr::AsyncResourceManager* resourceManager);
-  static void providePlatform(mr::Platform* platform);
-  static void provideSettings(Settings* settings);
-  static void provideMessenger(Messenger* messenger);
+  static void provideRenderer(mr::IRenderer* renderer);
+  static void provideWindowSystem(mr::IWindowSystem* windowSystem);
+  static void provideEngineConfig(mr::EngineConfig* engineConfig);
 
-  static mr::Renderer& getRenderer();
-  static mr::AsyncResourceManager& getResourceManager();
-  static mr::Platform* getPlatform();
-  static mr::Messenger* getMessenger();
-  static Settings* getSettings();
+  static mr::IRenderer* getRenderer();
+  static mr::IWindowSystem* getWindowSystem();
+  static mr::EngineConfig* getEngineConfig();
 };
 
 }  // namespace mr

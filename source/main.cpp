@@ -1,6 +1,7 @@
 #include "Merlin.h"
 
 int main() {
-  Merlin merlin;
+  mr::Merlin merlin;
   merlin.run();
+  return 0;
 }

@@ -1,56 +1,97 @@
 #include "Merlin.h"
 
-#include "Messenger.h"
-#include "Platform/Platform.h"
+#include "Config.h"
 #include "Renderer/Renderer.h"
-#include "ResourceManager/ResourceManager.h"
 #include "ServiceLocator.h"
+#include "WindowSystem/WindowSystem.h"
+#include "minilog/minilog.h"
 
 #include <vulkan/vulkan_core.h>
 
+#include <iostream>
 #include <memory>
+#include <ostream>
 #include <string>
 
-void setDefaultSettings(Settings& settings);
+static void setConfig(mr::EngineConfig& config);
 
-Merlin::Merlin() {
+mr::Merlin::Merlin() {
   init();
 }
 
-void Merlin::init() {
-  setDefaultSettings(m_settings);
+void mr::Merlin::init() {
+  minilog::initialize(nullptr, {.threadNames = false});
 
-  m_platform = std::make_unique<mr::GLFWPlatform>();
-  m_renderer = std::make_unique<mr::VkRenderer>();
-  m_resourceManager = std::make_unique<mr::AsyncResourceManager>();
-  m_sceneManager = std::make_unique<mr::SceneManager>();
-  m_messenger = std::make_unique<mr::Messenger>();
+  setConfig(config_);
 
-  mr::ServiceLocator::provideRenderer(m_renderer.get());
-  mr::ServiceLocator::provideResourceManager(m_resourceManager.get());
-  mr::ServiceLocator::providePlatform(m_platform.get());
-  mr::ServiceLocator::provideSettings(&m_settings);
-  mr::ServiceLocator::provideMessenger(m_messenger.get());
+  switch (config_.windowSystem) {
+    case mr::WindowSystem_GLFW:
+      windowSystem_ = std::make_unique<mr::GLFWWindowSystem>();
+      break;
+    default:
+      break;
+  }
+  mr::ServiceLocator::provideWindowSystem(windowSystem_.get());
 
-  // Init
-  m_messenger->init();
-  m_platform->init("Merlin", 1000, 1000);
-  m_resourceManager->init();
-  m_sceneManager->init();
-  m_renderer->init();
+  switch (config_.graphicsApi) {
+    case GraphicsAPI_Vulkan:
+      renderer_ = std::make_unique<VkRenderer>();
+      break;
+    default:
+      break;
+  }
 
-  m_resourceManager->loadResource<mr::VkShader>("default", "shaders/slang/default.slang",
-                                                VK_SHADER_STAGE_VERTEX_BIT
-                                                  | VK_SHADER_STAGE_FRAGMENT_BIT);
+  mr::ServiceLocator::provideRenderer(renderer_.get());
+
+  windowSystem_->init("Merlin", config_.windowWidth, config_.windowHeight);
+  LLOGL("Platform success init");
+  renderer_->init();
+  LLOGL("Renderer success init");
 }
 
-void Merlin::run() {
-  while (!m_platform->windowShouldClose()) {}
+void mr::Merlin::run() {
+  while (!windowSystem_->windowShouldClose()) {
+    windowSystem_->pollEvents();
+    renderer_->drawFrame();
+  }
+
+  renderer_->shutdown();
+  windowSystem_->shutdown();
 }
 
-void setDefaultSettings(Settings& settings) {
-  settings.graphicsApi = mr::GraphicsAPI::Vulkan;
-  settings.platform = mr::PlatformType::GLFWPlatform;
+static void setConfig(mr::EngineConfig& config) {
+  LLOGL("Config");
+  config.windowWidth = 1920;
+  config.windowHeight = 1080;
+  LLOGL("    Window size w %i : h %i ", config.windowWidth, config.windowHeight);
 
-  settings.systemPaths.shadersFolderPath.push_back("shaders/slang");
-}
+#if defined(LINUX) || defined(WINDOWS)
+  config.graphicsApi = mr::GraphicsAPI_Vulkan;
+#endif
+
+  switch (config.graphicsApi) {
+    case mr::GraphicsAPI_Vulkan:
+      LLOGL("    GraphicsAPI: Vulkan");
+      break;
+    case mr::GraphicsAPI_Metal:
+      LLOGL("    GraphicsAPI: Metal");
+      break;
+    case mr::GraphicsAPI_None:
+      break;
+  }
+
+#if defined(LINUX) | defined(WINDOWS)
+  config.windowSystem = mr::WindowSystem_GLFW;
+#endif
+
+  switch (config.windowSystem) {
+    case mr::WindowSystem_GLFW:
+      LLOGL("    WindowSystem: GLFW");
+      break;
+    case mr::WindowSystem_SDL3:
+      LLOGL("    WindowSystem: SDL3");
+      break;
+    default:
+      LLOGL("    WindowSystem: None");
+  }
+};
